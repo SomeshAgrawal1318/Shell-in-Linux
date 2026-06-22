@@ -12,7 +12,8 @@ const char *builtin_commands[] = {
     "usage", // Provides a brief usage guide for the shell and its built-in command
     "env", // Lists all the environment variables currently set in the shell
     "setenv", // Sets or modifies an environment variable for this shell session
-    "unsetenv" // Removes an environment variable from the shell
+    "unsetenv", // Removes an environment variable from the shell
+    "history" // Prints the last MAX_HISTORY commands entered
     };
 
 const char *builtin_usage[] = {
@@ -23,6 +24,7 @@ const char *builtin_usage[] = {
     "env - List all environment variables currently set in the shell.",
     "setenv KEY=VALUE - Set or modify an environment variable.",
     "unsetenv KEY - Remove an environment variable.",
+    "history - Show the last 10 commands entered.",
 };
 
 /*** This is array of functions, with argument char ***/
@@ -32,8 +34,9 @@ int (*builtin_command_func[])(char **) = {
     &shell_exit,   // builtin_command_func[2]: exit
     &shell_usage,  // builtin_command_func[3]: usage
     &list_env,     // builtin_command_func[4]: env
-    &set_env_var,  // builtin_command_func[5]: setenv
-    &unset_env_var // builtin_command_func[6]: unsetenv
+    &set_env_var,    // builtin_command_func[5]: setenv
+    &unset_env_var,  // builtin_command_func[6]: unsetenv
+    &shell_history   // builtin_command_func[7]: history
 };
 
 int num_builtin_functions(void)
@@ -107,7 +110,7 @@ void type_prompt()
 #ifdef _WIN32
     system("cls"); // Windows command to clear screen
 #else
-    system("clear"); // UNIX/Linux command to clear screen
+    // system("clear"); // UNIX/Linux command to clear screen
 #endif
     first_time = 0;
   }
@@ -195,4 +198,108 @@ int set_env_var(char **args){
 int unset_env_var(char **args){
   unsetenv(args[1]);
   return 1;
+}
+
+// Circular buffer storing the last MAX_HISTORY commands
+static char *history[MAX_HISTORY];
+static int history_count = 0;  // total commands added so far (never resets)
+
+void add_to_history(char **cmd)
+{
+    // Reconstruct the full command string from its tokens (e.g. "cd files")
+    char entry[MAX_LINE] = "";
+    for (int i = 0; cmd[i] != NULL; i++) {
+        if (i > 0)
+            strncat(entry, " ", sizeof(entry) - strlen(entry) - 1);
+        strncat(entry, cmd[i], sizeof(entry) - strlen(entry) - 1);
+    }
+
+    // Overwrite the oldest slot once the buffer is full
+    int slot = history_count % MAX_HISTORY;
+    free(history[slot]);          // free previous entry in this slot (NULL-safe)
+    history[slot] = strdup(entry);
+    history_count++;
+}
+
+int shell_history(char **args)
+{
+    (void)args;
+    // How many entries are actually stored (capped at MAX_HISTORY)
+    int stored = history_count < MAX_HISTORY ? history_count : MAX_HISTORY;
+    // Index of the oldest entry in the circular buffer
+    int oldest = history_count > MAX_HISTORY ? history_count % MAX_HISTORY : 0;
+
+    for (int i = 0; i < stored; i++) {
+        int slot = (oldest + i) % MAX_HISTORY;
+        // Print with a global sequence number so it looks like bash history
+        printf("%3d  %s\n", history_count - stored + i + 1, history[slot]);
+    }
+    return 1;
+}
+bool check_path(char *line){
+  char path[5];
+  memcpy(path, line, 4);
+  path[4] = '\0';
+  if (strcmp(path, "PATH") == 0){
+    return true;
+  }
+  return false;
+}
+
+void process_rc_file(void)
+{
+    const char *filePath = ".cseshellrc";
+    FILE *file = fopen(filePath, "r");
+    if (file == NULL)
+        return;
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file))
+    {
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n')
+            line[len - 1] = '\0';
+
+        if (line[0] == '\0')
+            continue;
+
+        if (check_path(line))
+        {
+            char *delimiter = strchr(line, '=');
+            if (delimiter != NULL)
+            {
+                *delimiter = '\0';
+                setenv(line, delimiter + 1, 1);
+            }
+            continue;
+        }
+
+        char *rc_cmd[MAX_ARGS];
+        int rc_argc = 0;
+        char *token = strtok(line, " \t");
+        while (token != NULL && rc_argc < MAX_ARGS - 1)
+        {
+            rc_cmd[rc_argc++] = token;
+            token = strtok(NULL, " \t");
+        }
+        rc_cmd[rc_argc] = NULL;
+
+        if (rc_argc == 0)
+            continue;
+
+        pid_t pid = fork();
+        if (pid == 0)
+        {
+            execvp(rc_cmd[0], rc_cmd);
+            printf("Command %s not found\n", rc_cmd[0]);
+            _exit(1);
+        }
+        else if (pid > 0)
+        {
+            int status;
+            waitpid(pid, &status, 0);
+        }
+    }
+
+    fclose(file);
 }

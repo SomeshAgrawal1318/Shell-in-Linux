@@ -34,7 +34,7 @@ UNIT_BIN_DIR = $(UNIT_DIR)/bin
 UNIT_SOURCES = $(wildcard $(UNIT_DIR)/test_*.c)
 UNIT_BINS = $(UNIT_SOURCES:$(UNIT_DIR)/%.c=$(UNIT_BIN_DIR)/%)
 
-TEST_CFLAGS = -I$(INC_DIR) -I$(UNITY_DIR) -Wall -Wextra
+TEST_CFLAGS = -I$(INC_DIR) -I$(INC_DIR)/libs -I$(UNITY_DIR) -Wall -Wextra
 
 # ----------------------------------------------------------------------
 # Build targets

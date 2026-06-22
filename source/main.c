@@ -16,6 +16,8 @@ int main(void)
     }
     strncat(shell_bin_prefix, "/bin/", sizeof(shell_bin_prefix) - strlen(shell_bin_prefix) - 1);
 
+    process_rc_file();
+
     // Define an array to hold the command and its arguments
     while (true){
         /* Initialize cmd array */
@@ -27,6 +29,7 @@ int main(void)
         bool builtin = false;
         // Formulate the full path of the command to be executed
         if (cmd[0] != NULL && strcmp(cmd[0], "") != 0){
+            add_to_history(cmd); // record every non-empty command
             for (int command_index = 0; command_index < num_builtin_functions(); command_index++) {
                 if (strcmp(cmd[0], builtin_commands[command_index]) == 0) {
                     builtin = true;
