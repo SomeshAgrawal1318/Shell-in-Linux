@@ -113,7 +113,7 @@ void type_prompt()
 #ifdef _WIN32
     system("cls"); // Windows command to clear screen
 #else
-    // system("clear"); // UNIX/Linux command to clear screen
+    system("clear"); // UNIX/Linux command to clear screen
 #endif
     first_time = 0;
     print_welcome_message(); // greet the user in their chosen language
@@ -143,7 +143,9 @@ void type_prompt()
   else
       snprintf(display_path, sizeof(display_path), "%s", cwd);
 
-  printf("\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ",
+  // Lead with a distinct magenta tag so it's obvious you're inside CSEShell
+  // and not the regular bash prompt (which looks identical otherwise).
+  printf("\033[1;35m(cseshell)\033[0m \033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ",
          username, hostname, display_path);
 }
 
