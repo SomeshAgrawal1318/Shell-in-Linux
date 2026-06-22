@@ -49,6 +49,20 @@ After building, you can start the shell by running:
 
 From there, you can execute built-in commands and any of the included system programs (e.g., `find`, `ld`, `ldr`).
 
+## Supported Builtin Commands
+
+| Command | Description |
+|---------|-------------|
+| `cd [dir]` | Change working directory. If no argument, prints the current directory. |
+| `help` | List all builtin commands. |
+| `exit` | Exit the shell. |
+| `usage [command]` | Show usage help. No argument lists all builtins; with a name shows help for that command. |
+| `env` | Print all current environment variables. |
+| `setenv KEY=VALUE` | Set or modify an environment variable for this session. |
+| `unsetenv KEY` | Remove an environment variable from this session. |
+| `history` | Show the last 10 commands entered, numbered like bash history. |
+| `lang [code]` | Show or switch the shell's display language (`en`, `zh`, `ms`, `ta`). |
+
 ## System Programs
 
 - `find.c` - Searches for files in a directory.
@@ -60,6 +74,41 @@ From there, you can execute built-in commands and any of the included system pro
 - `backup.c` - Compresses the directory in `$BACKUP_DIR` into a dated archive.
 
 ## Additional Features
+
+### Multilingual Support (`lang`)
+
+CSEShell greets the user and can switch its display language between **English, Chinese, Malay, and Tamil** — Singapore's four official languages. Type `lang` to see the options, or `lang <code>` to switch:
+
+```
+$$ lang
+Current language: English (en)
+Available languages:
+  en - English
+  zh - Chinese
+  ms - Malay
+  ta - Tamil
+Use 'lang <code>' to switch.
+$$ lang zh
+欢迎使用 CSEShell！
+$$ lang ta
+CSEShell-க்கு வரவேற்கிறோம்!
+```
+
+**How it works**: the active language is stored in the `CSESHELL_LANG` environment variable (default `en`). The `shell_lang()` builtin validates the requested code, updates `CSESHELL_LANG` with `setenv()`, and greets in the new language. The startup banner shown by `print_welcome_message()` reads the same variable, so a language chosen at launch (`CSESHELL_LANG=ms ./cseshell`) is honoured immediately.
+
+### Colored Prompt
+
+The shell prompt shows `user@host:~/path$` in colour, updating on every command so it always reflects the current directory. Green for `user@host`, blue for the path — no configuration needed.
+
+```
+zeff@LAPTOP-ABC:~$ cd files
+zeff@LAPTOP-ABC:~/cse_labs/2026-pa1-50005-snickers/files$ ld
+...
+zeff@LAPTOP-ABC:~/cse_labs/2026-pa1-50005-snickers/files$ cd ..
+zeff@LAPTOP-ABC:~/cse_labs/2026-pa1-50005-snickers$
+```
+
+**How it works**: `type_prompt()` in `shell.c` calls `getpwuid(getuid())` for the username, `gethostname()` for the host (trimmed at the first `.`), and `getcwd()` for the path (with the `HOME` prefix replaced by `~`).
 
 ### Command History (`history`)
 
@@ -84,7 +133,7 @@ $$ history
 
 **Sustainability**: CSEShell is intentionally lightweight. It spawns no background threads and holds no persistent resources. The `dspawn` daemon writes to disk only every 10 seconds and terminates after 10 iterations rather than running indefinitely. The `backup` program produces compressed archives, keeping storage use low. No GUI or heavy framework dependencies are required — `make && ./cseshell` is the entire deployment.
 
-**Inclusivity**: All interfaces use standard ASCII and POSIX system calls so the shell works identically on any Unix-like OS regardless of locale or language settings. Error messages explain what went wrong and what to do next (e.g., `export BACKUP_DIR=...`) rather than printing numeric codes. The `usage` builtin provides in-shell documentation for every command so users do not need to consult external man pages.
+**Inclusivity**: CSEShell ships with **multilingual support** — the `lang` builtin lets users run the shell in English, Chinese, Malay, or Tamil (Singapore's four official languages), making it usable by non-English-first users (see Additional Features above). Beyond language, error messages explain what went wrong and what to do next (e.g., `export BACKUP_DIR=...`) rather than printing numeric codes, and the `usage` builtin provides in-shell documentation for every command so users do not need to consult external man pages. *Future work*: translate the `help`/`usage` text and error messages into the selected language too, and add a `NO_COLOR` mode for screen-reader and colour-blind users.
 
 Each program can be executed from the CSEShell once it is running. This starter code only allows the shell to execute a command once before exiting because `execv` replace the entire process' address space. Students need to fix this and allow the shell to prompt for more commands in Programming Assignment 1.
 
@@ -154,10 +203,13 @@ Functions not suited for unit testing here: `fork`/`execv` in the shell loop, da
 - **`test_dcheck.sh`** — `dcheck` runs and prints the "Active dspawn daemons:" summary line.
 - **`test_backup.sh`** — `backup` without `BACKUP_DIR` prints an error mentioning the variable; with `BACKUP_DIR=./files` it creates a `.tar.gz` file inside `archive/`.
 - **`test_history.sh`** — runs `ld`, `cd files`, then `history`; checks that both previous commands appear in the numbered output.
+- **`test_builtin_usage.sh`** — `usage` lists all builtins, and `usage cd` shows command-specific help.
+- **`test_builtin_lang.sh`** — `lang` lists the four languages; `lang ms` and `lang zh` switch the greeting language.
 
 ### AI use
+First four parts are hand written by a human. Later the humans got tired and then read below.
 
-AI (Claude) assisted with: implementing the four Part 5 system programs (`sys`, `dspawn`, `dcheck`, `backup`), implementing `classify_rc_line`, the `history` additional feature, writing all integration tests for Part 5 and the history feature, and fixing two pre-existing bugs (`static` mismatch on `process_rc_file`, wrong include path in `TEST_CFLAGS`). All generated code was reviewed and understood before submission.
+AI (Claude) assisted with: implementing the four Part 5 system programs (`sys`, `dspawn`, `dcheck`, `backup`), implementing `classify_rc_line`, the additional features (`history`, the colored prompt, and the multilingual `lang` builtin), writing integration tests for Part 5 and for the `history`/`usage`/`lang` features, and fixing two pre-existing bugs (`static` mismatch on `process_rc_file`, wrong include path in `TEST_CFLAGS`). All generated code was reviewed and understood before submission.
 
 ### AI-Assisted Unit Test Generation
 

@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdbool.h>
+#include <pwd.h>
 
 #define MAX_LINE 1024
 #define MAX_ARGS 64
@@ -31,6 +32,8 @@ bool check_path(char *line);
 void process_rc_file(void);
 void add_to_history(char **cmd);
 int shell_history(char **args);
+int shell_lang(char **args);
+void print_welcome_message(void);
 extern const char *builtin_commands[];
 extern int (*builtin_command_func[])(char **);
 #endif

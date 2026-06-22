@@ -13,7 +13,8 @@ const char *builtin_commands[] = {
     "env", // Lists all the environment variables currently set in the shell
     "setenv", // Sets or modifies an environment variable for this shell session
     "unsetenv", // Removes an environment variable from the shell
-    "history" // Prints the last MAX_HISTORY commands entered
+    "history", // Prints the last MAX_HISTORY commands entered
+    "lang" // Switches the shell's display language (inclusivity feature)
     };
 
 const char *builtin_usage[] = {
@@ -25,6 +26,7 @@ const char *builtin_usage[] = {
     "setenv KEY=VALUE - Set or modify an environment variable.",
     "unsetenv KEY - Remove an environment variable.",
     "history - Show the last 10 commands entered.",
+    "lang [code] - Show or switch language (en, zh, ms, ta).",
 };
 
 /*** This is array of functions, with argument char ***/
@@ -36,7 +38,8 @@ int (*builtin_command_func[])(char **) = {
     &list_env,     // builtin_command_func[4]: env
     &set_env_var,    // builtin_command_func[5]: setenv
     &unset_env_var,  // builtin_command_func[6]: unsetenv
-    &shell_history   // builtin_command_func[7]: history
+    &shell_history,  // builtin_command_func[7]: history
+    &shell_lang      // builtin_command_func[8]: lang
 };
 
 int num_builtin_functions(void)
@@ -113,9 +116,35 @@ void type_prompt()
     // system("clear"); // UNIX/Linux command to clear screen
 #endif
     first_time = 0;
+    print_welcome_message(); // greet the user in their chosen language
   }
-  fflush(stdout); // Flush the output buffer
-  printf("$$ ");  // Print the shell prompt
+  fflush(stdout);
+
+  // username
+  struct passwd *pw = getpwuid(getuid());
+  const char *username = pw ? pw->pw_name : "user";
+
+  // short hostname (trim at first '.')
+  char hostname[256];
+  if (gethostname(hostname, sizeof(hostname)) != 0)
+      strncpy(hostname, "localhost", sizeof(hostname));
+  char *dot = strchr(hostname, '.');
+  if (dot) *dot = '\0';
+
+  // current directory, replace HOME prefix with '~'
+  char cwd[PATH_MAX];
+  if (getcwd(cwd, sizeof(cwd)) == NULL)
+      strncpy(cwd, "?", sizeof(cwd));
+  const char *home = getenv("HOME");
+  char display_path[PATH_MAX];
+  if (home && strncmp(cwd, home, strlen(home)) == 0 &&
+      (cwd[strlen(home)] == '/' || cwd[strlen(home)] == '\0'))
+      snprintf(display_path, sizeof(display_path), "~%s", cwd + strlen(home));
+  else
+      snprintf(display_path, sizeof(display_path), "%s", cwd);
+
+  printf("\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ",
+         username, hostname, display_path);
 }
 
 int shell_exit(char **args){
@@ -236,6 +265,70 @@ int shell_history(char **args)
     }
     return 1;
 }
+// ---------------------------------------------------------------------------
+// Multilingual support (inclusivity feature)
+//
+// CSEShell can greet and confirm in any of Singapore's four official
+// languages. The active language is stored in the CSESHELL_LANG environment
+// variable ("en", "zh", "ms", "ta"); English is the default when it is unset
+// or holds an unknown value.
+// ---------------------------------------------------------------------------
+static const char *lang_codes[]   = { "en", "zh", "ms", "ta" };
+static const char *lang_names[]   = { "English", "Chinese", "Malay", "Tamil" };
+static const char *lang_welcome[] = {
+    "Welcome to CSEShell!",
+    "欢迎使用 CSEShell！",
+    "Selamat datang ke CSEShell!",
+    "CSEShell-க்கு வரவேற்கிறோம்!"
+};
+#define NUM_LANGS ((int)(sizeof(lang_codes) / sizeof(lang_codes[0])))
+
+// Return the index of the active language, defaulting to English (0).
+static int current_lang_index(void)
+{
+    const char *code = getenv("CSESHELL_LANG");
+    if (code != NULL)
+        for (int i = 0; i < NUM_LANGS; i++)
+            if (strcmp(code, lang_codes[i]) == 0)
+                return i;
+    return 0;
+}
+
+// Print the startup greeting in the active language.
+void print_welcome_message(void)
+{
+    printf("%s\n", lang_welcome[current_lang_index()]);
+}
+
+int shell_lang(char **args)
+{
+    // No argument: show the current language and the available choices.
+    if (args[1] == NULL) {
+        int i = current_lang_index();
+        printf("Current language: %s (%s)\n", lang_names[i], lang_codes[i]);
+        printf("Available languages:\n");
+        for (int j = 0; j < NUM_LANGS; j++)
+            printf("  %s - %s\n", lang_codes[j], lang_names[j]);
+        printf("Use 'lang <code>' to switch.\n");
+        return 1;
+    }
+
+    // Argument given: switch to it if recognised, and greet in that language.
+    for (int j = 0; j < NUM_LANGS; j++) {
+        if (strcmp(args[1], lang_codes[j]) == 0) {
+            setenv("CSESHELL_LANG", lang_codes[j], 1);
+            printf("%s\n", lang_welcome[j]);
+            return 1;
+        }
+    }
+
+    fprintf(stderr, "lang: unknown language '%s'. Try one of:", args[1]);
+    for (int j = 0; j < NUM_LANGS; j++)
+        fprintf(stderr, " %s", lang_codes[j]);
+    fprintf(stderr, "\n");
+    return 1;
+}
+
 bool check_path(char *line){
   char path[5];
   memcpy(path, line, 4);
